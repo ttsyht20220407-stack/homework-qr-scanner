@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>宿題QRスキャナー Step22</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+      background:#f3f6fb;
+      color:#1f2937;
+    }
+
+    .wrap{
+      max-width:720px;
+      margin:0 auto;
+      padding:20px;
+    }
+
+    h1{
+      margin:0 0 16px;
+      font-size:1.5rem;
+    }
+
+    .card{
+      background:white;
+      border-radius:14px;
+      padding:18px;
+      margin-bottom:16px;
+      box-shadow:0 4px 16px rgba(0,0,0,.06);
+    }
+
+    button,select{
+      border:0;
+      border-radius:10px;
+      padding:12px 16px;
+      font-weight:800;
+      margin-right:8px;
+      margin-bottom:8px;
+      font:inherit;
+    }
+
+    button{
+      cursor:pointer;
+    }
+
+    .primary{
+      background:#2563eb;
+      color:white;
+    }
+
+    .gray{
+      background:#e5e7eb;
+      color:#111827;
+    }
+
+    select{
+      border:1px solid #d1d5db;
+      background:white;
+      max-width:100%;
+    }
+
+    #reader{
+      width:100%;
+      margin-top:12px;
+    }
+
+    .result{
+      padding:20px;
+      border-radius:12px;
+      background:#eef2ff;
+      text-align:center;
+      word-break:break-all;
+    }
+
+    .ok{
+      background:#ecfdf5;
+      color:#065f46;
+    }
+
+    .warn{
+      background:#fff7ed;
+      color:#9a3412;
+    }
+
+    .duplicate{
+      background:#eff6ff;
+      color:#1d4ed8;
+    }
+
+    .error{
+      background:#fef2f2;
+      color:#991b1b;
+    }
+
+    .big-id{
+      font-size:2.4rem;
+      font-weight:900;
+      line-height:1.1;
+    }
+
+    .big-subject{
+      font-size:1.7rem;
+      font-weight:900;
+      margin-top:8px;
+    }
+
+    .raw{
+      font-size:.9rem;
+      color:#6b7280;
+      margin-top:10px;
+    }
+
+    .small{
+      font-size:.9rem;
+      color:#6b7280;
+      line-height:1.6;
+    }
+
+    .status{
+      font-weight:800;
+      margin-top:8px;
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <h1>宿題QRスキャナー</h1>
+
+  <div class="card">
+    <select id="cameraSelect">
+      <option value="">カメラを選択</option>
+    </select>
+
+    <button class="primary" onclick="startCamera()">
+      カメラを起動
+    </button>
+
+    <button class="gray" onclick="switchCamera()">
+      カメラ切替
+    </button>
+
+    <button class="gray" onclick="stopCamera()">
+      カメラ停止
+    </button>
+
+    <div id="cameraStatus" class="status">
+      カメラ停止中
+    </div>
+
+    <div id="reader"></div>
+  </div>
+
+  <div class="card">
+    <div id="result" class="result">
+      <div class="big-id">次のQR</div>
+      <div class="big-subject">読み取り待機中</div>
+    </div>
+
+    <p class="small">
+      QRを読み取ると「ピッ」と鳴り、
+      開いてくれた宿題管理画面へ自動で送ります。
+      同じQRは短時間に連続登録しません。
+    </p>
+  </div>
+
+</div>
+
+<script>
+let qr = null;
+let running = false;
+let cameras = [];
+let currentCameraIndex = 0;
+let lastCode = '';
+let lastTime = 0;
+let resetTimer = null;
+
+const SUBJECTS = {
+  KANJI:'漢字',
+  MATH:'算数',
+  SOCIAL:'社会',
+  SCIENCE:'理科',
+  JIGAKU:'自学'
+};
+
+async function loadCameras(){
+  try{
+    cameras = await Html5Qrcode.getCameras();
+
+    const select =
+      document.getElementById('cameraSelect');
+
+    select.innerHTML = '';
+
+    if(!cameras || !cameras.length){
+      select.innerHTML =
+        '<option value="">カメラが見つかりません</option>';
+      return;
+    }
+
+    cameras.forEach((camera,index) => {
+      const option = document.createElement('option');
+      option.value = String(index);
+      option.textContent =
+        camera.label || `カメラ ${index + 1}`;
+      select.appendChild(option);
+    });
+
+    const preferredIndex =
+      cameras.findIndex(c =>
+        /back|rear|environment|背面/i.test(c.label || '')
+      );
+
+    currentCameraIndex =
+      preferredIndex >= 0 ? preferredIndex : 0;
+
+    select.value = String(currentCameraIndex);
+
+  }catch(e){
+    showError(
+      'カメラ一覧を取得できません：' +
+      (e.message || e)
+    );
+  }
+}
+
+async function startCamera(){
+  if(running) return;
+
+  try{
+    if(!cameras.length){
+      await loadCameras();
+    }
+
+    if(!cameras.length){
+      showError('カメラが見つかりません。');
+      return;
+    }
+
+    const select =
+      document.getElementById('cameraSelect');
+
+    if(select.value !== ''){
+      currentCameraIndex = Number(select.value);
+    }
+
+    qr = new Html5Qrcode('reader');
+
+    await qr.start(
+      cameras[currentCameraIndex].id,
+      {
+        fps:10,
+        qrbox:{width:250,height:250}
+      },
+      onScanSuccess,
+      () => {}
+    );
+
+    running = true;
+
+    document.getElementById('cameraStatus').textContent =
+      'カメラ起動中';
+
+  }catch(e){
+    showError(
+      'カメラを起動できません：' +
+      (e.message || e)
+    );
+  }
+}
+
+async function stopCamera(){
+  if(!qr || !running) return;
+
+  try{
+    await qr.stop();
+    await qr.clear();
+  }catch(e){
+    // 停止失敗は無視
+  }
+
+  running = false;
+
+  document.getElementById('cameraStatus').textContent =
+    'カメラ停止中';
+}
+
+async function switchCamera(){
+  if(!cameras.length){
+    await loadCameras();
+  }
+
+  if(cameras.length <= 1){
+    showError('切り替えられるカメラがありません。');
+    return;
+  }
+
+  if(running){
+    await stopCamera();
+  }
+
+  currentCameraIndex =
+    (currentCameraIndex + 1) % cameras.length;
+
+  document.getElementById('cameraSelect').value =
+    String(currentCameraIndex);
+
+  await startCamera();
+}
+
+function onScanSuccess(decodedText){
+  const code = String(decodedText || '').trim();
+
+  if(!code) return;
+
+  const now = Date.now();
+
+  // 同じQRの連続読み取りを2秒間防止
+  if(code === lastCode && now - lastTime < 2000){
+    return;
+  }
+
+  lastCode = code;
+  lastTime = now;
+
+  beep();
+  showReadResult(code);
+
+  if(window.opener && !window.opener.closed){
+    window.opener.postMessage(
+      {
+        type:'QR_CODE',
+        code:code
+      },
+      '*'
+    );
+  }else{
+    const result = document.getElementById('result');
+    result.className = 'result warn';
+    result.innerHTML = `
+      <div class="big-id">送信できません</div>
+      <div class="big-subject">宿題管理画面からスキャナーを開いてください</div>
+    `;
+    scheduleReadyReset();
+  }
+}
+
+function showReadResult(code){
+  const result =
+    document.getElementById('result');
+
+  const match =
+    code.match(/^(\d{1,3})[-_:]([A-Z0-9_]+)$/i);
+
+  if(match){
+    const id =
+      String(match[1]).padStart(3,'0');
+
+    const subjectCode =
+      String(match[2]).toUpperCase();
+
+    const subject =
+      SUBJECTS[subjectCode] || subjectCode;
+
+    result.className = 'result';
+
+    result.innerHTML = `
+      <div class="big-id">${escapeHtml(id)}番</div>
+      <div class="big-subject">${escapeHtml(subject)}</div>
+      <div class="raw">登録確認中…</div>
+    `;
+
+    return;
+  }
+
+  result.className = 'result';
+
+  result.innerHTML = `
+    <div class="big-id">読取成功</div>
+    <div class="big-subject">${escapeHtml(code)}</div>
+    <div class="raw">登録確認中…</div>
+  `;
+}
+
+
+
+window.addEventListener('message', function(event){
+  const data = event.data || {};
+
+  if(data.type !== 'QR_RESULT'){
+    return;
+  }
+
+  const result =
+    document.getElementById('result');
+
+  if(data.status === 'registered'){
+    result.className = 'result ok';
+    result.innerHTML = `
+      <div class="big-id">登録OK</div>
+      <div class="big-subject">${escapeHtml(data.message || '')}</div>
+    `;
+  }else if(data.status === 'duplicate'){
+    result.className = 'result duplicate';
+    result.innerHTML = `
+      <div class="big-id">登録済み</div>
+      <div class="big-subject">${escapeHtml(data.message || '')}</div>
+    `;
+  }else if(data.status === 'not_today'){
+    result.className = 'result warn';
+    result.innerHTML = `
+      <div class="big-id">登録しませんでした</div>
+      <div class="big-subject">${escapeHtml(data.message || '')}</div>
+    `;
+  }else{
+    result.className = 'result error';
+    result.innerHTML = `
+      <div class="big-id">エラー</div>
+      <div class="big-subject">${escapeHtml(data.message || '登録できませんでした')}</div>
+    `;
+  }
+
+  scheduleReadyReset();
+});
+
+function scheduleReadyReset(){
+  if(resetTimer){
+    clearTimeout(resetTimer);
+  }
+
+  resetTimer = setTimeout(() => {
+    showReadyState();
+  },3000);
+}
+
+function showReadyState(){
+  const result =
+    document.getElementById('result');
+
+  result.className = 'result';
+
+  result.innerHTML = `
+    <div class="big-id">次のQR</div>
+    <div class="big-subject">読み取り待機中</div>
+  `;
+}
+
+function beep(){
+  try{
+    const AudioContextClass =
+      window.AudioContext || window.webkitAudioContext;
+
+    if(!AudioContextClass) return;
+
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.frequency.value = 880;
+    gain.gain.value = 0.10;
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+
+    setTimeout(() => {
+      osc.stop();
+      ctx.close();
+    },120);
+
+  }catch(e){
+    // 音が鳴らなくても読み取りは継続
+  }
+}
+
+function showError(message){
+  const result =
+    document.getElementById('result');
+
+  result.className = 'result error';
+
+  result.innerHTML = `
+    <div class="big-id">エラー</div>
+    <div class="big-subject">${escapeHtml(message)}</div>
+  `;
+}
+
+function escapeHtml(value){
+  return String(value)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#039;");
+}
+
+window.addEventListener('load', loadCameras);
+</script>
+
+</body>
+</html>
