@@ -3,621 +3,151 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>宿題QRスキャナー Step27</title>
-
+  <title>宿題QRスキャナー Step28</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-
   <style>
-    body{
-      margin:0;
-      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
-      background:#f3f6fb;
-      color:#1f2937;
-    }
-    .wrap{
-      max-width:720px;
-      margin:0 auto;
-      padding:20px;
-    }
-    h1{
-      margin:0 0 16px;
-      font-size:1.5rem;
-    }
-    .card{
-      background:white;
-      border-radius:14px;
-      padding:18px;
-      margin-bottom:16px;
-      box-shadow:0 4px 16px rgba(0,0,0,.06);
-    }
-    button,select{
-      border:0;
-      border-radius:10px;
-      padding:12px 16px;
-      font-weight:800;
-      margin-right:8px;
-      margin-bottom:8px;
-      font:inherit;
-    }
-    button{cursor:pointer}
-    .primary{background:#2563eb;color:white}
-    .green{background:#059669;color:white}
-    .gray{background:#e5e7eb;color:#111827}
-    select{
-      border:1px solid #d1d5db;
-      background:white;
-      max-width:100%;
-    }
-    #video{
-      width:100%;
-      max-height:480px;
-      background:#111827;
-      border-radius:12px;
-      display:none;
-    }
-    canvas{display:none}
-    .status{
-      font-weight:800;
-      margin-top:10px;
-    }
-    .result{
-      padding:20px;
-      border-radius:12px;
-      background:#eef2ff;
-      text-align:center;
-      word-break:break-word;
-    }
-    .ok{background:#ecfdf5;color:#065f46}
-    .warn{background:#fff7ed;color:#9a3412}
-    .duplicate{background:#eff6ff;color:#1d4ed8}
-    .error{background:#fef2f2;color:#991b1b}
-    
-.history-title{
-  font-weight:900;
-  margin-bottom:10px;
-}
-.history-list{
-  display:grid;
-  gap:8px;
-}
-.history-item{
-  padding:10px 12px;
-  border-radius:10px;
-  background:#f9fafb;
-  border:1px solid #e5e7eb;
-}
-.history-main{
-  font-weight:900;
-  font-size:1rem;
-}
-.history-sub{
-  margin-top:4px;
-  font-size:.85rem;
-  color:#6b7280;
-}
-.history-ok{
-  border-color:#a7f3d0;
-  background:#ecfdf5;
-}
-.history-duplicate{
-  border-color:#bfdbfe;
-  background:#eff6ff;
-}
-.history-warn{
-  border-color:#fed7aa;
-  background:#fff7ed;
-}
-.history-error{
-  border-color:#fecaca;
-  background:#fef2f2;
-}
-.big-id{
-      font-size:2.2rem;
-      font-weight:900;
-    }
-    .big-subject{
-      font-size:1.5rem;
-      font-weight:900;
-      margin-top:6px;
-    }
-    .raw{
-      font-size:.9rem;
-      color:#6b7280;
-      margin-top:8px;
-    }
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f3f6fb;color:#1f2937}
+    .wrap{max-width:720px;margin:0 auto;padding:20px}
+    h1{margin:0 0 16px;font-size:1.5rem}
+    .card{background:white;border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 4px 16px rgba(0,0,0,.06)}
+    button,select{border:0;border-radius:10px;padding:12px 16px;font-weight:800;margin-right:8px;margin-bottom:8px;font:inherit}
+    button{cursor:pointer}.primary{background:#2563eb;color:white}.green{background:#059669;color:white}.gray{background:#e5e7eb;color:#111827}
+    select{border:1px solid #d1d5db;background:white;max-width:100%}
+    #video{width:100%;max-height:480px;background:#111827;border-radius:12px;display:none}
+    canvas{display:none}.status{font-weight:800;margin-top:10px}
+    .result{padding:20px;border-radius:12px;background:#eef2ff;text-align:center;word-break:break-word}
+    .ok{background:#ecfdf5;color:#065f46}.warn{background:#fff7ed;color:#9a3412}.duplicate{background:#eff6ff;color:#1d4ed8}.error{background:#fef2f2;color:#991b1b}
+    .history-title{font-weight:900;margin-bottom:10px}.history-list{display:grid;gap:8px}
+    .history-item{padding:10px 12px;border-radius:10px;background:#f9fafb;border:1px solid #e5e7eb}
+    .history-main{font-weight:900;font-size:1rem}.history-sub{margin-top:4px;font-size:.85rem;color:#6b7280}
+    .history-ok{border-color:#a7f3d0;background:#ecfdf5}.history-duplicate{border-color:#bfdbfe;background:#eff6ff}
+    .history-warn{border-color:#fed7aa;background:#fff7ed}.history-error{border-color:#fecaca;background:#fef2f2}
+    .big-id{font-size:2.2rem;font-weight:900}.big-subject{font-size:1.5rem;font-weight:900;margin-top:6px}.raw{font-size:.9rem;color:#6b7280;margin-top:8px}
   </style>
 </head>
 <body>
 <div class="wrap">
   <h1>宿題QRスキャナー</h1>
-
   <div class="card">
-    <select id="cameraSelect">
-      <option value="">カメラを選択</option>
-    </select>
-
-    <button class="green" onclick="startCamera()">
-      カメラ開始
-    </button>
-
-    <button class="primary" onclick="switchCamera()">
-      カメラ切替
-    </button>
-
-    <button class="gray" onclick="stopCamera()">
-      カメラ停止
-    </button>
-
+    <select id="cameraSelect"><option value="">カメラを選択</option></select>
+    <button class="green" onclick="startCamera()">カメラ開始</button>
+    <button class="primary" onclick="switchCamera()">カメラ切替</button>
+    <button class="gray" onclick="stopCamera()">カメラ停止</button>
     <div id="status" class="status">カメラ停止中</div>
-
-    <video id="video" playsinline autoplay muted></video>
-    <canvas id="canvas"></canvas>
+    <video id="video" playsinline autoplay muted></video><canvas id="canvas"></canvas>
   </div>
-
-  <div class="card">
-    <div id="result" class="result">
-      <div class="big-id">次のQR</div>
-      <div class="big-subject">読み取り待機中</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="history-title">直近3件</div>
-    <div id="historyList" class="history-list">
-      <div class="history-item">
-        <div class="history-main">まだ履歴はありません</div>
-      </div>
-    </div>
-  </div>
+  <div class="card"><div id="result" class="result"><div class="big-id">次のQR</div><div class="big-subject">読み取り待機中</div></div></div>
+  <div class="card"><div class="history-title">直近3件</div><div id="historyList" class="history-list"></div></div>
 </div>
-
 <script>
-let stream = null;
-let cameras = [];
-let cameraIndex = 0;
-let scanning = false;
-let rafId = null;
-let lastCode = '';
-let lastTime = 0;
-let resetTimer = null;
-let scanHistory = [];
-let pendingScan = null;
+let stream=null,cameras=[],cameraIndex=0,scanning=false,rafId=null,lastCode='',lastTime=0,resetTimer=null;
+let scanHistory=[];
+const pendingScans=[];
+const SUBJECTS={KANJI:'漢字',MATH:'算数',SOCIAL:'社会',SCIENCE:'理科',JIGAKU:'自学'};
 
-const SUBJECTS = {
-  KANJI:'漢字',
-  MATH:'算数',
-  SOCIAL:'社会',
-  SCIENCE:'理科',
-  JIGAKU:'自学'
-};
+function loadHistory(){
+  try{scanHistory=JSON.parse(sessionStorage.getItem('qrScanHistory')||'[]');if(!Array.isArray(scanHistory))scanHistory=[];}catch(e){scanHistory=[];}
+  renderHistory();
+}
+function saveHistory(){try{sessionStorage.setItem('qrScanHistory',JSON.stringify(scanHistory));}catch(e){}}
 
 async function startCamera(){
-  const status = document.getElementById('status');
-
-  if(scanning) return;
-
+  const status=document.getElementById('status'); if(scanning)return;
   try{
-    status.textContent = 'カメラの許可を確認しています…';
-
-    // まず最小構成で直接カメラ要求
-    let constraints = {
-      audio:false,
-      video:{
-        facingMode:{ideal:'environment'}
-      }
-    };
-
-    if(cameras.length && cameras[cameraIndex]){
-      constraints = {
-        audio:false,
-        video:{
-          deviceId:{exact:cameras[cameraIndex].deviceId}
-        }
-      };
-    }
-
-    stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-    const video = document.getElementById('video');
-    video.srcObject = stream;
-    video.style.display = 'block';
-
-    await video.play();
-
-    scanning = true;
-    status.textContent = 'カメラ起動中・QRを読み取れます';
-
-    await refreshCameras();
-    scanLoop();
-
+    status.textContent='カメラの許可を確認しています…';
+    let constraints={audio:false,video:{facingMode:{ideal:'environment'}}};
+    if(cameras.length&&cameras[cameraIndex]) constraints={audio:false,video:{deviceId:{exact:cameras[cameraIndex].deviceId}}};
+    stream=await navigator.mediaDevices.getUserMedia(constraints);
+    const video=document.getElementById('video');video.srcObject=stream;video.style.display='block';await video.play();
+    scanning=true;status.textContent='カメラ起動中・QRを読み取れます';await refreshCameras();scanLoop();
   }catch(err){
-    scanning = false;
-
-    let name = err && err.name ? err.name : '';
-    let msg = err && err.message ? err.message : String(err);
-
-    if(name === 'NotAllowedError'){
-      msg = 'カメラの使用が許可されていません。サイト設定のカメラを「許可する」にしてください。';
-    }else if(name === 'NotFoundError'){
-      msg = '利用できるカメラが見つかりません。';
-    }else if(name === 'NotReadableError'){
-      msg = 'カメラを使用できません。他のタブやアプリがカメラを使っていないか確認してください。';
-    }else if(name === 'OverconstrainedError'){
-      msg = '指定したカメラ条件では起動できません。';
-    }
-
-    status.textContent = `${name || 'CameraError'}：${msg}`;
-    showError(status.textContent);
+    scanning=false;let name=err&&err.name?err.name:'';let msg=err&&err.message?err.message:String(err);
+    if(name==='NotAllowedError')msg='カメラの使用が許可されていません。サイト設定のカメラを「許可する」にしてください。';
+    else if(name==='NotFoundError')msg='利用できるカメラが見つかりません。';
+    else if(name==='NotReadableError')msg='カメラを使用できません。他のタブやアプリがカメラを使っていないか確認してください。';
+    else if(name==='OverconstrainedError')msg='指定したカメラ条件では起動できません。';
+    status.textContent=`${name||'CameraError'}：${msg}`;showError(status.textContent);
   }
 }
-
 async function refreshCameras(){
   try{
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    cameras = devices.filter(d => d.kind === 'videoinput');
-
-    const select = document.getElementById('cameraSelect');
-    select.innerHTML = '';
-
-    if(!cameras.length){
-      select.innerHTML =
-        '<option value="">カメラ一覧を取得できません</option>';
-      return;
-    }
-
-    cameras.forEach((cam,index) => {
-      const opt = document.createElement('option');
-      opt.value = String(index);
-      opt.textContent = cam.label || `カメラ ${index+1}`;
-      select.appendChild(opt);
-    });
-
-    const preferred = cameras.findIndex(cam =>
-      /back|rear|environment|背面/i.test(cam.label || '')
-    );
-
-    if(preferred >= 0){
-      cameraIndex = preferred;
-    }
-
-    select.value = String(cameraIndex);
-
+    const devices=await navigator.mediaDevices.enumerateDevices();cameras=devices.filter(d=>d.kind==='videoinput');
+    const select=document.getElementById('cameraSelect');select.innerHTML='';
+    if(!cameras.length){select.innerHTML='<option value="">カメラ一覧を取得できません</option>';return;}
+    cameras.forEach((cam,index)=>{const opt=document.createElement('option');opt.value=String(index);opt.textContent=cam.label||`カメラ ${index+1}`;select.appendChild(opt);});
+    const preferred=cameras.findIndex(cam=>/back|rear|environment|背面/i.test(cam.label||''));if(preferred>=0)cameraIndex=preferred;select.value=String(cameraIndex);
   }catch(e){}
 }
-
 async function stopCamera(){
-  scanning = false;
-
-  if(rafId){
-    cancelAnimationFrame(rafId);
-    rafId = null;
-  }
-
-  if(stream){
-    stream.getTracks().forEach(track => track.stop());
-    stream = null;
-  }
-
-  const video = document.getElementById('video');
-  video.srcObject = null;
-  video.style.display = 'none';
-
-  document.getElementById('status').textContent = 'カメラ停止中';
+  scanning=false;if(rafId){cancelAnimationFrame(rafId);rafId=null;}
+  if(stream){stream.getTracks().forEach(track=>track.stop());stream=null;}
+  const video=document.getElementById('video');video.srcObject=null;video.style.display='none';document.getElementById('status').textContent='カメラ停止中';
 }
-
-async function switchCamera(){
-  if(!cameras.length){
-    await refreshCameras();
-  }
-
-  if(cameras.length <= 1){
-    showError('切り替えられるカメラがありません。');
-    return;
-  }
-
-  await stopCamera();
-
-  cameraIndex = (cameraIndex + 1) % cameras.length;
-  document.getElementById('cameraSelect').value = String(cameraIndex);
-
-  await startCamera();
-}
-
-document.getElementById('cameraSelect').addEventListener('change', async e => {
-  cameraIndex = Number(e.target.value || 0);
-
-  if(scanning){
-    await stopCamera();
-    await startCamera();
-  }
-});
+async function switchCamera(){if(!cameras.length)await refreshCameras();if(cameras.length<=1){showError('切り替えられるカメラがありません。');return;}await stopCamera();cameraIndex=(cameraIndex+1)%cameras.length;document.getElementById('cameraSelect').value=String(cameraIndex);await startCamera();}
+document.getElementById('cameraSelect').addEventListener('change',async e=>{cameraIndex=Number(e.target.value||0);if(scanning){await stopCamera();await startCamera();}});
 
 function scanLoop(){
-  if(!scanning) return;
-
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-
-  if(video.readyState === video.HAVE_ENOUGH_DATA){
-    const width = video.videoWidth;
-    const height = video.videoHeight;
-
-    if(width && height){
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext('2d', {willReadFrequently:true});
-      ctx.drawImage(video,0,0,width,height);
-
-      const imageData = ctx.getImageData(0,0,width,height);
-
-      const code = jsQR(
-        imageData.data,
-        width,
-        height,
-        {inversionAttempts:'dontInvert'}
-      );
-
-      if(code && code.data){
-        onScanSuccess(code.data);
-      }
-    }
+  if(!scanning)return;const video=document.getElementById('video'),canvas=document.getElementById('canvas');
+  if(video.readyState===video.HAVE_ENOUGH_DATA){
+    const width=video.videoWidth,height=video.videoHeight;
+    if(width&&height){canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(video,0,0,width,height);const imageData=ctx.getImageData(0,0,width,height);const code=jsQR(imageData.data,width,height,{inversionAttempts:'dontInvert'});if(code&&code.data)onScanSuccess(code.data);}
   }
-
-  rafId = requestAnimationFrame(scanLoop);
+  rafId=requestAnimationFrame(scanLoop);
 }
-
 function onScanSuccess(decodedText){
-  const code = String(decodedText || '').trim();
-  if(!code) return;
-
-  const now = Date.now();
-
-  if(code === lastCode && now - lastTime < 2000){
-    return;
-  }
-
-  lastCode = code;
-  lastTime = now;
-
-  beep();
-  showReadResult(code);
-
-  pendingScan = parseHistoryCode(code);
-
-  if(window.opener && !window.opener.closed){
-    window.opener.postMessage(
-      {type:'QR_CODE',code:code},
-      '*'
-    );
-  }else{
-    const result = document.getElementById('result');
-    addHistory('error','宿題管理画面から開かれていません');
-
-    result.className = 'result warn';
-    result.innerHTML = `
-      <div class="big-id">送信できません</div>
-      <div class="big-subject">宿題管理画面からスキャナーを開いてください</div>
-    `;
-    scheduleReadyReset();
-  }
+  const code=String(decodedText||'').trim();if(!code)return;const now=Date.now();if(code===lastCode&&now-lastTime<2000)return;
+  lastCode=code;lastTime=now;beep();showReadResult(code);
+  pendingScans.push({code:code,scan:parseHistoryCode(code),time:now});
+  while(pendingScans.length>10)pendingScans.shift();
+  if(window.opener&&!window.opener.closed) window.opener.postMessage({type:'QR_CODE',code:code},'*');
+  else{pendingScans.pop();addHistoryForScan(parseHistoryCode(code),'error','宿題管理画面から開かれていません');showResult('error','送信できません','宿題管理画面からスキャナーを開いてください');scheduleReadyReset();}
 }
-
-
 function parseHistoryCode(code){
-  const match =
-    String(code || '').match(/^(\d{1,3})[-_:]([A-Z0-9_]+)$/i);
-
-  if(!match){
-    return {
-      id:'',
-      subject:String(code || '')
-    };
-  }
-
-  const id =
-    String(match[1]).padStart(3,'0');
-
-  const subjectCode =
-    String(match[2]).toUpperCase();
-
-  const subject =
-    SUBJECTS[subjectCode] || subjectCode;
-
-  return {
-    id:id,
-    subject:subject
-  };
+  const match=String(code||'').match(/^(\d{1,3})[-_:]([A-Z0-9_]+)$/i);
+  if(!match)return{id:'',subject:String(code||'')};
+  const id=String(match[1]).padStart(3,'0'),subjectCode=String(match[2]).toUpperCase();
+  return{id:id,subject:SUBJECTS[subjectCode]||subjectCode};
 }
-
-function nowTimeString(){
-  const d = new Date();
-
-  return String(d.getHours()).padStart(2,'0') +
-    ':' +
-    String(d.getMinutes()).padStart(2,'0') +
-    ':' +
-    String(d.getSeconds()).padStart(2,'0');
+function nowTimeString(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
+function addHistoryForScan(scan,status,message){
+  scanHistory.unshift({id:scan?.id||'',subject:scan?.subject||'',status:status,message:message||'',time:nowTimeString()});
+  scanHistory=scanHistory.slice(0,3);saveHistory();renderHistory();
 }
-
-function addHistory(status,message){
-  const scan = pendingScan || {id:'',subject:''};
-
-  scanHistory.unshift({
-    id:scan.id,
-    subject:scan.subject,
-    status:status,
-    message:message || '',
-    time:nowTimeString()
-  });
-
-  scanHistory = scanHistory.slice(0,3);
-
-  renderHistory();
-  pendingScan = null;
-}
-
 function renderHistory(){
-  const box =
-    document.getElementById('historyList');
-
-  if(!scanHistory.length){
-    box.innerHTML = `
-      <div class="history-item">
-        <div class="history-main">まだ履歴はありません</div>
-      </div>
-    `;
-    return;
-  }
-
-  box.innerHTML =
-    scanHistory.map(item => {
-      let cls = '';
-
-      if(item.status === 'registered'){
-        cls = 'history-ok';
-      }else if(item.status === 'duplicate'){
-        cls = 'history-duplicate';
-      }else if(item.status === 'not_today'){
-        cls = 'history-warn';
-      }else{
-        cls = 'history-error';
-      }
-
-      const main =
-        item.id
-          ? `${escapeHtml(item.id)}番 ${escapeHtml(item.subject)}`
-          : escapeHtml(item.subject);
-
-      return `
-        <div class="history-item ${cls}">
-          <div class="history-main">${main}</div>
-          <div class="history-sub">
-            ${escapeHtml(item.time)} ／ ${escapeHtml(item.message)}
-          </div>
-        </div>
-      `;
-    }).join('');
+  const box=document.getElementById('historyList');
+  if(!scanHistory.length){box.innerHTML='<div class="history-item"><div class="history-main">まだ履歴はありません</div></div>';return;}
+  box.innerHTML=scanHistory.map(item=>{
+    let cls=item.status==='registered'?'history-ok':item.status==='duplicate'?'history-duplicate':item.status==='not_today'?'history-warn':'history-error';
+    const main=item.id?`${escapeHtml(item.id)}番 ${escapeHtml(item.subject)}`:escapeHtml(item.subject);
+    return `<div class="history-item ${cls}"><div class="history-main">${main}</div><div class="history-sub">${escapeHtml(item.time)} ／ ${escapeHtml(item.message)}</div></div>`;
+  }).join('');
 }
-
 function showReadResult(code){
-  const result = document.getElementById('result');
-
-  const match = code.match(/^(\d{1,3})[-_:]([A-Z0-9_]+)$/i);
-
-  if(match){
-    const id = String(match[1]).padStart(3,'0');
-    const subjectCode = String(match[2]).toUpperCase();
-    const subject = SUBJECTS[subjectCode] || subjectCode;
-
-    result.className = 'result';
-    result.innerHTML = `
-      <div class="big-id">${escapeHtml(id)}番</div>
-      <div class="big-subject">${escapeHtml(subject)}</div>
-      <div class="raw">登録確認中…</div>
-    `;
-  }else{
-    result.className = 'result';
-    result.innerHTML = `
-      <div class="big-id">読取成功</div>
-      <div class="big-subject">${escapeHtml(code)}</div>
-    `;
-  }
+  const result=document.getElementById('result'),match=code.match(/^(\d{1,3})[-_:]([A-Z0-9_]+)$/i);
+  if(match){const id=String(match[1]).padStart(3,'0'),subjectCode=String(match[2]).toUpperCase(),subject=SUBJECTS[subjectCode]||subjectCode;result.className='result';result.innerHTML=`<div class="big-id">${escapeHtml(id)}番</div><div class="big-subject">${escapeHtml(subject)}</div><div class="raw">登録確認中…</div>`;}
+  else{result.className='result';result.innerHTML=`<div class="big-id">読取成功</div><div class="big-subject">${escapeHtml(code)}</div>`;}
 }
-
-window.addEventListener('message', event => {
-  const data = event.data || {};
-  if(data.type !== 'QR_RESULT') return;
-
-  const result = document.getElementById('result');
-
-  if(data.status === 'registered'){
-    addHistory('registered', data.message || '登録OK');
-    result.className = 'result ok';
-    result.innerHTML = `
-      <div class="big-id">登録OK</div>
-      <div class="big-subject">${escapeHtml(data.message || '')}</div>
-    `;
-  }else if(data.status === 'duplicate'){
-    addHistory('duplicate', data.message || '登録済み');
-    result.className = 'result duplicate';
-    result.innerHTML = `
-      <div class="big-id">登録済み</div>
-      <div class="big-subject">${escapeHtml(data.message || '')}</div>
-    `;
-  }else if(data.status === 'not_today'){
-    addHistory('not_today', data.message || '今日の宿題ではありません');
-    result.className = 'result warn';
-    result.innerHTML = `
-      <div class="big-id">登録しませんでした</div>
-      <div class="big-subject">${escapeHtml(data.message || '')}</div>
-    `;
-  }else{
-    addHistory('error', data.message || '登録エラー');
-    result.className = 'result error';
-    result.innerHTML = `
-      <div class="big-id">エラー</div>
-      <div class="big-subject">${escapeHtml(data.message || '')}</div>
-    `;
-  }
-
+function showResult(kind,title,message){
+  const result=document.getElementById('result');result.className='result '+(kind==='registered'?'ok':kind==='duplicate'?'duplicate':kind==='not_today'?'warn':'error');
+  result.innerHTML=`<div class="big-id">${escapeHtml(title)}</div><div class="big-subject">${escapeHtml(message||'')}</div>`;
+}
+window.addEventListener('message',event=>{
+  const data=event.data||{};if(data.type!=='QR_RESULT')return;
+  let pending=null;
+  if(data.code){const idx=pendingScans.findIndex(p=>p.code===String(data.code).trim());if(idx>=0)pending=pendingScans.splice(idx,1)[0];}
+  if(!pending)pending=pendingScans.shift()||null;
+  const scan=pending?pending.scan:parseHistoryCode(data.code||'');
+  if(data.status==='registered'){addHistoryForScan(scan,'registered',data.message||'登録OK');showResult('registered','登録OK',data.message||'');}
+  else if(data.status==='duplicate'){addHistoryForScan(scan,'duplicate',data.message||'登録済み');showResult('duplicate','登録済み',data.message||'');}
+  else if(data.status==='not_today'){addHistoryForScan(scan,'not_today',data.message||'今日の宿題ではありません');showResult('not_today','登録しませんでした',data.message||'');}
+  else{addHistoryForScan(scan,'error',data.message||'登録エラー');showResult('error','エラー',data.message||'');}
   scheduleReadyReset();
 });
-
-function scheduleReadyReset(){
-  if(resetTimer) clearTimeout(resetTimer);
-
-  resetTimer = setTimeout(() => {
-    const result = document.getElementById('result');
-    result.className = 'result';
-    result.innerHTML = `
-      <div class="big-id">次のQR</div>
-      <div class="big-subject">読み取り待機中</div>
-    `;
-  },3000);
-}
-
-function beep(){
-  try{
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if(!Ctx) return;
-
-    const ctx = new Ctx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.frequency.value = 880;
-    gain.gain.value = .1;
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start();
-
-    setTimeout(() => {
-      osc.stop();
-      ctx.close();
-    },120);
-  }catch(e){}
-}
-
-function showError(message){
-  const result = document.getElementById('result');
-  result.className = 'result error';
-  result.innerHTML = `
-    <div class="big-id">カメラエラー</div>
-    <div class="big-subject">${escapeHtml(message)}</div>
-  `;
-}
-
-function escapeHtml(value){
-  return String(value)
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'","&#039;");
-}
+function scheduleReadyReset(){if(resetTimer)clearTimeout(resetTimer);resetTimer=setTimeout(()=>{const result=document.getElementById('result');result.className='result';result.innerHTML='<div class="big-id">次のQR</div><div class="big-subject">読み取り待機中</div>';},3000);}
+function beep(){try{const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;const ctx=new Ctx(),osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=880;gain.gain.value=.1;osc.connect(gain);gain.connect(ctx.destination);osc.start();setTimeout(()=>{osc.stop();ctx.close();},120);}catch(e){}}
+function showError(message){const result=document.getElementById('result');result.className='result error';result.innerHTML=`<div class="big-id">カメラエラー</div><div class="big-subject">${escapeHtml(message)}</div>`;}
+function escapeHtml(value){return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;");}
+loadHistory();
 </script>
 </body>
 </html>
