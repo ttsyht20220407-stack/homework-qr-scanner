@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>宿題QRスキャナー Step24</title>
+  <title>宿題QRスキャナー Step25</title>
 
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
   <style>
     body{
@@ -14,18 +14,15 @@
       background:#f3f6fb;
       color:#1f2937;
     }
-
     .wrap{
       max-width:720px;
       margin:0 auto;
       padding:20px;
     }
-
     h1{
       margin:0 0 16px;
       font-size:1.5rem;
     }
-
     .card{
       background:white;
       border-radius:14px;
@@ -33,7 +30,6 @@
       margin-bottom:16px;
       box-shadow:0 4px 16px rgba(0,0,0,.06);
     }
-
     button,select{
       border:0;
       border-radius:10px;
@@ -43,94 +39,56 @@
       margin-bottom:8px;
       font:inherit;
     }
-
-    button{
-      cursor:pointer;
-    }
-
-    .primary{
-      background:#2563eb;
-      color:white;
-    }
-
-    .gray{
-      background:#e5e7eb;
-      color:#111827;
-    }
-
+    button{cursor:pointer}
+    .primary{background:#2563eb;color:white}
+    .green{background:#059669;color:white}
+    .gray{background:#e5e7eb;color:#111827}
     select{
       border:1px solid #d1d5db;
       background:white;
       max-width:100%;
     }
-
-    #reader{
+    #video{
       width:100%;
-      margin-top:12px;
+      max-height:480px;
+      background:#111827;
+      border-radius:12px;
+      display:none;
     }
-
+    canvas{display:none}
+    .status{
+      font-weight:800;
+      margin-top:10px;
+    }
     .result{
       padding:20px;
       border-radius:12px;
       background:#eef2ff;
       text-align:center;
-      word-break:break-all;
+      word-break:break-word;
     }
-
-    .ok{
-      background:#ecfdf5;
-      color:#065f46;
-    }
-
-    .warn{
-      background:#fff7ed;
-      color:#9a3412;
-    }
-
-    .duplicate{
-      background:#eff6ff;
-      color:#1d4ed8;
-    }
-
-    .error{
-      background:#fef2f2;
-      color:#991b1b;
-    }
-
+    .ok{background:#ecfdf5;color:#065f46}
+    .warn{background:#fff7ed;color:#9a3412}
+    .duplicate{background:#eff6ff;color:#1d4ed8}
+    .error{background:#fef2f2;color:#991b1b}
     .big-id{
-      font-size:2.4rem;
+      font-size:2.2rem;
       font-weight:900;
-      line-height:1.1;
     }
-
     .big-subject{
-      font-size:1.7rem;
+      font-size:1.5rem;
       font-weight:900;
-      margin-top:8px;
+      margin-top:6px;
     }
-
     .raw{
       font-size:.9rem;
       color:#6b7280;
-      margin-top:10px;
-    }
-
-    .small{
-      font-size:.9rem;
-      color:#6b7280;
-      line-height:1.6;
-    }
-
-    .status{
-      font-weight:800;
       margin-top:8px;
     }
   </style>
 </head>
-
 <body>
 <div class="wrap">
-
   <h1>宿題QRスキャナー</h1>
 
   <div class="card">
@@ -138,11 +96,11 @@
       <option value="">カメラを選択</option>
     </select>
 
-    <button class="primary" onclick="startCamera()">
-      カメラを起動
+    <button class="green" onclick="startCamera()">
+      カメラ開始
     </button>
 
-    <button class="gray" onclick="switchCamera()">
+    <button class="primary" onclick="switchCamera()">
       カメラ切替
     </button>
 
@@ -150,11 +108,10 @@
       カメラ停止
     </button>
 
-    <div id="cameraStatus" class="status">
-      カメラ停止中
-    </div>
+    <div id="status" class="status">カメラ停止中</div>
 
-    <div id="reader"></div>
+    <video id="video" playsinline autoplay muted></video>
+    <canvas id="canvas"></canvas>
   </div>
 
   <div class="card">
@@ -162,21 +119,15 @@
       <div class="big-id">次のQR</div>
       <div class="big-subject">読み取り待機中</div>
     </div>
-
-    <p class="small">
-      QRを読み取ると「ピッ」と鳴り、
-      開いてくれた宿題管理画面へ自動で送ります。
-      同じQRは短時間に連続登録しません。
-    </p>
   </div>
-
 </div>
 
 <script>
-let qr = null;
-let running = false;
+let stream = null;
 let cameras = [];
-let currentCameraIndex = 0;
+let cameraIndex = 0;
+let scanning = false;
+let rafId = null;
 let lastCode = '';
 let lastTime = 0;
 let resetTimer = null;
@@ -190,134 +141,122 @@ const SUBJECTS = {
 };
 
 async function startCamera(){
-  const status = document.getElementById('cameraStatus');
+  const status = document.getElementById('status');
 
-  if(running){
-    return;
-  }
-
-  if(typeof Html5Qrcode === 'undefined'){
-    showError('QR読み取り機能を読み込めませんでした。ページを再読み込みしてください。');
-    return;
-  }
+  if(scanning) return;
 
   try{
     status.textContent = 'カメラの許可を確認しています…';
 
-    qr = new Html5Qrcode('reader');
+    // まず最小構成で直接カメラ要求
+    let constraints = {
+      audio:false,
+      video:{
+        facingMode:{ideal:'environment'}
+      }
+    };
 
-    // 最初はカメラ一覧を取らず、
-    // ユーザー操作の直後に environment で直接起動する
-    try{
-      await qr.start(
-        { facingMode:'environment' },
-        {
-          fps:10,
-          qrbox:{width:250,height:250}
-        },
-        onScanSuccess,
-        () => {}
-      );
-    }catch(firstError){
-      // Chromebookなどでenvironment指定が使えない場合は
-      // user向けカメラで再試行
-      await qr.start(
-        { facingMode:'user' },
-        {
-          fps:10,
-          qrbox:{width:250,height:250}
-        },
-        onScanSuccess,
-        () => {}
-      );
+    if(cameras.length && cameras[cameraIndex]){
+      constraints = {
+        audio:false,
+        video:{
+          deviceId:{exact:cameras[cameraIndex].deviceId}
+        }
+      };
     }
 
-    running = true;
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    const video = document.getElementById('video');
+    video.srcObject = stream;
+    video.style.display = 'block';
+
+    await video.play();
+
+    scanning = true;
     status.textContent = 'カメラ起動中・QRを読み取れます';
 
-    // カメラ起動後ならデバイス名を取得しやすい
-    await refreshCameraList();
+    await refreshCameras();
+    scanLoop();
 
-  }catch(e){
-    running = false;
+  }catch(err){
+    scanning = false;
 
-    let msg = String(
-      (e && e.message) ? e.message : e
-    );
+    let name = err && err.name ? err.name : '';
+    let msg = err && err.message ? err.message : String(err);
 
-    if(/NotAllowed|Permission|denied|許可/i.test(msg)){
-      msg =
-        'カメラの使用が許可されていません。Chromeのアドレスバー左側の設定から、このサイトの「カメラ」を「許可」にしてください。';
-    }else if(/NotFound|DevicesNotFound|camera/i.test(msg)){
-      msg =
-        '利用できるカメラを見つけられませんでした。Chromebookのカメラ設定を確認してください。';
+    if(name === 'NotAllowedError'){
+      msg = 'カメラの使用が許可されていません。サイト設定のカメラを「許可する」にしてください。';
+    }else if(name === 'NotFoundError'){
+      msg = '利用できるカメラが見つかりません。';
+    }else if(name === 'NotReadableError'){
+      msg = 'カメラを使用できません。他のタブやアプリがカメラを使っていないか確認してください。';
+    }else if(name === 'OverconstrainedError'){
+      msg = '指定したカメラ条件では起動できません。';
     }
 
-    showError(msg);
-    status.textContent = 'カメラを起動できません';
+    status.textContent = `${name || 'CameraError'}：${msg}`;
+    showError(status.textContent);
   }
 }
 
-async function refreshCameraList(){
+async function refreshCameras(){
   try{
-    cameras = await Html5Qrcode.getCameras();
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    cameras = devices.filter(d => d.kind === 'videoinput');
 
-    const select =
-      document.getElementById('cameraSelect');
-
+    const select = document.getElementById('cameraSelect');
     select.innerHTML = '';
 
-    if(!cameras || !cameras.length){
+    if(!cameras.length){
       select.innerHTML =
         '<option value="">カメラ一覧を取得できません</option>';
       return;
     }
 
-    cameras.forEach((camera,index) => {
-      const option = document.createElement('option');
-      option.value = String(index);
-      option.textContent =
-        camera.label || `カメラ ${index + 1}`;
-      select.appendChild(option);
+    cameras.forEach((cam,index) => {
+      const opt = document.createElement('option');
+      opt.value = String(index);
+      opt.textContent = cam.label || `カメラ ${index+1}`;
+      select.appendChild(opt);
     });
 
-    const preferred =
-      cameras.findIndex(c =>
-        /back|rear|environment|背面/i.test(c.label || '')
-      );
+    const preferred = cameras.findIndex(cam =>
+      /back|rear|environment|背面/i.test(cam.label || '')
+    );
 
     if(preferred >= 0){
-      currentCameraIndex = preferred;
-      select.value = String(preferred);
+      cameraIndex = preferred;
     }
 
-  }catch(e){
-    // 一覧取得に失敗してもスキャン自体は継続
-  }
+    select.value = String(cameraIndex);
+
+  }catch(e){}
 }
 
 async function stopCamera(){
-  if(!qr || !running){
-    document.getElementById('cameraStatus').textContent =
-      'カメラ停止中';
-    return;
+  scanning = false;
+
+  if(rafId){
+    cancelAnimationFrame(rafId);
+    rafId = null;
   }
 
-  try{
-    await qr.stop();
-    await qr.clear();
-  }catch(e){}
+  if(stream){
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+  }
 
-  qr = null;
-  running = false;
+  const video = document.getElementById('video');
+  video.srcObject = null;
+  video.style.display = 'none';
 
-  document.getElementById('cameraStatus').textContent =
-    'カメラ停止中';
+  document.getElementById('status').textContent = 'カメラ停止中';
 }
 
 async function switchCamera(){
   if(!cameras.length){
-    await refreshCameraList();
+    await refreshCameras();
   }
 
   if(cameras.length <= 1){
@@ -325,87 +264,60 @@ async function switchCamera(){
     return;
   }
 
-  if(running){
-    await stopCamera();
-  }
+  await stopCamera();
 
-  currentCameraIndex =
-    (currentCameraIndex + 1) % cameras.length;
+  cameraIndex = (cameraIndex + 1) % cameras.length;
+  document.getElementById('cameraSelect').value = String(cameraIndex);
 
-  document.getElementById('cameraSelect').value =
-    String(currentCameraIndex);
-
-  try{
-    qr = new Html5Qrcode('reader');
-
-    await qr.start(
-      cameras[currentCameraIndex].id,
-      {
-        fps:10,
-        qrbox:{width:250,height:250}
-      },
-      onScanSuccess,
-      () => {}
-    );
-
-    running = true;
-
-    document.getElementById('cameraStatus').textContent =
-      'カメラ起動中・QRを読み取れます';
-
-  }catch(e){
-    showError(
-      'カメラ切替に失敗しました：' +
-      ((e && e.message) ? e.message : String(e))
-    );
-  }
+  await startCamera();
 }
 
-document
-  .getElementById('cameraSelect')
-  .addEventListener('change', async event => {
-    if(!cameras.length){
-      return;
-    }
+document.getElementById('cameraSelect').addEventListener('change', async e => {
+  cameraIndex = Number(e.target.value || 0);
 
-    currentCameraIndex =
-      Number(event.target.value || 0);
-
-    if(!running){
-      return;
-    }
-
+  if(scanning){
     await stopCamera();
+    await startCamera();
+  }
+});
 
-    try{
-      qr = new Html5Qrcode('reader');
+function scanLoop(){
+  if(!scanning) return;
 
-      await qr.start(
-        cameras[currentCameraIndex].id,
-        {
-          fps:10,
-          qrbox:{width:250,height:250}
-        },
-        onScanSuccess,
-        () => {}
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+
+  if(video.readyState === video.HAVE_ENOUGH_DATA){
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if(width && height){
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d', {willReadFrequently:true});
+      ctx.drawImage(video,0,0,width,height);
+
+      const imageData = ctx.getImageData(0,0,width,height);
+
+      const code = jsQR(
+        imageData.data,
+        width,
+        height,
+        {inversionAttempts:'dontInvert'}
       );
 
-      running = true;
-
-      document.getElementById('cameraStatus').textContent =
-        'カメラ起動中・QRを読み取れます';
-
-    }catch(e){
-      showError(
-        'カメラの変更に失敗しました：' +
-        ((e && e.message) ? e.message : String(e))
-      );
+      if(code && code.data){
+        onScanSuccess(code.data);
+      }
     }
-  });
+  }
+
+  rafId = requestAnimationFrame(scanLoop);
+}
 
 function onScanSuccess(decodedText){
   const code = String(decodedText || '').trim();
-
   if(!code) return;
 
   const now = Date.now();
@@ -422,10 +334,7 @@ function onScanSuccess(decodedText){
 
   if(window.opener && !window.opener.closed){
     window.opener.postMessage(
-      {
-        type:'QR_CODE',
-        code:code
-      },
+      {type:'QR_CODE',code:code},
       '*'
     );
   }else{
@@ -440,51 +349,35 @@ function onScanSuccess(decodedText){
 }
 
 function showReadResult(code){
-  const result =
-    document.getElementById('result');
+  const result = document.getElementById('result');
 
-  const match =
-    code.match(/^(\d{1,3})[-_:]([A-Z0-9_]+)$/i);
+  const match = code.match(/^(\d{1,3})[-_:]([A-Z0-9_]+)$/i);
 
   if(match){
-    const id =
-      String(match[1]).padStart(3,'0');
-
-    const subjectCode =
-      String(match[2]).toUpperCase();
-
-    const subject =
-      SUBJECTS[subjectCode] || subjectCode;
+    const id = String(match[1]).padStart(3,'0');
+    const subjectCode = String(match[2]).toUpperCase();
+    const subject = SUBJECTS[subjectCode] || subjectCode;
 
     result.className = 'result';
-
     result.innerHTML = `
       <div class="big-id">${escapeHtml(id)}番</div>
       <div class="big-subject">${escapeHtml(subject)}</div>
       <div class="raw">登録確認中…</div>
     `;
-
-    return;
+  }else{
+    result.className = 'result';
+    result.innerHTML = `
+      <div class="big-id">読取成功</div>
+      <div class="big-subject">${escapeHtml(code)}</div>
+    `;
   }
-
-  result.className = 'result';
-
-  result.innerHTML = `
-    <div class="big-id">読取成功</div>
-    <div class="big-subject">${escapeHtml(code)}</div>
-    <div class="raw">登録確認中…</div>
-  `;
 }
 
-window.addEventListener('message', function(event){
+window.addEventListener('message', event => {
   const data = event.data || {};
+  if(data.type !== 'QR_RESULT') return;
 
-  if(data.type !== 'QR_RESULT'){
-    return;
-  }
-
-  const result =
-    document.getElementById('result');
+  const result = document.getElementById('result');
 
   if(data.status === 'registered'){
     result.className = 'result ok';
@@ -508,7 +401,7 @@ window.addEventListener('message', function(event){
     result.className = 'result error';
     result.innerHTML = `
       <div class="big-id">エラー</div>
-      <div class="big-subject">${escapeHtml(data.message || '登録できませんでした')}</div>
+      <div class="big-subject">${escapeHtml(data.message || '')}</div>
     `;
   }
 
@@ -516,40 +409,29 @@ window.addEventListener('message', function(event){
 });
 
 function scheduleReadyReset(){
-  if(resetTimer){
-    clearTimeout(resetTimer);
-  }
+  if(resetTimer) clearTimeout(resetTimer);
 
   resetTimer = setTimeout(() => {
-    showReadyState();
+    const result = document.getElementById('result');
+    result.className = 'result';
+    result.innerHTML = `
+      <div class="big-id">次のQR</div>
+      <div class="big-subject">読み取り待機中</div>
+    `;
   },3000);
-}
-
-function showReadyState(){
-  const result =
-    document.getElementById('result');
-
-  result.className = 'result';
-
-  result.innerHTML = `
-    <div class="big-id">次のQR</div>
-    <div class="big-subject">読み取り待機中</div>
-  `;
 }
 
 function beep(){
   try{
-    const AudioContextClass =
-      window.AudioContext || window.webkitAudioContext;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return;
 
-    if(!AudioContextClass) return;
-
-    const ctx = new AudioContextClass();
+    const ctx = new Ctx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
     osc.frequency.value = 880;
-    gain.gain.value = 0.10;
+    gain.gain.value = .1;
 
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -560,16 +442,12 @@ function beep(){
       osc.stop();
       ctx.close();
     },120);
-
   }catch(e){}
 }
 
 function showError(message){
-  const result =
-    document.getElementById('result');
-
+  const result = document.getElementById('result');
   result.className = 'result error';
-
   result.innerHTML = `
     <div class="big-id">カメラエラー</div>
     <div class="big-subject">${escapeHtml(message)}</div>
@@ -585,6 +463,5 @@ function escapeHtml(value){
     .replaceAll("'","&#039;");
 }
 </script>
-
 </body>
 </html>
