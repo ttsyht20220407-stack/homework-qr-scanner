@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>宿題QRスキャナー Step22</title>
+  <title>宿題QRスキャナー Step24</title>
 
   <script src="https://unpkg.com/html5-qrcode"></script>
 
@@ -189,7 +189,76 @@ const SUBJECTS = {
   JIGAKU:'自学'
 };
 
-async function loadCameras(){
+async function startCamera(){
+  const status = document.getElementById('cameraStatus');
+
+  if(running){
+    return;
+  }
+
+  if(typeof Html5Qrcode === 'undefined'){
+    showError('QR読み取り機能を読み込めませんでした。ページを再読み込みしてください。');
+    return;
+  }
+
+  try{
+    status.textContent = 'カメラの許可を確認しています…';
+
+    qr = new Html5Qrcode('reader');
+
+    // 最初はカメラ一覧を取らず、
+    // ユーザー操作の直後に environment で直接起動する
+    try{
+      await qr.start(
+        { facingMode:'environment' },
+        {
+          fps:10,
+          qrbox:{width:250,height:250}
+        },
+        onScanSuccess,
+        () => {}
+      );
+    }catch(firstError){
+      // Chromebookなどでenvironment指定が使えない場合は
+      // user向けカメラで再試行
+      await qr.start(
+        { facingMode:'user' },
+        {
+          fps:10,
+          qrbox:{width:250,height:250}
+        },
+        onScanSuccess,
+        () => {}
+      );
+    }
+
+    running = true;
+    status.textContent = 'カメラ起動中・QRを読み取れます';
+
+    // カメラ起動後ならデバイス名を取得しやすい
+    await refreshCameraList();
+
+  }catch(e){
+    running = false;
+
+    let msg = String(
+      (e && e.message) ? e.message : e
+    );
+
+    if(/NotAllowed|Permission|denied|許可/i.test(msg)){
+      msg =
+        'カメラの使用が許可されていません。Chromeのアドレスバー左側の設定から、このサイトの「カメラ」を「許可」にしてください。';
+    }else if(/NotFound|DevicesNotFound|camera/i.test(msg)){
+      msg =
+        '利用できるカメラを見つけられませんでした。Chromebookのカメラ設定を確認してください。';
+    }
+
+    showError(msg);
+    status.textContent = 'カメラを起動できません';
+  }
+}
+
+async function refreshCameraList(){
   try{
     cameras = await Html5Qrcode.getCameras();
 
@@ -200,7 +269,7 @@ async function loadCameras(){
 
     if(!cameras || !cameras.length){
       select.innerHTML =
-        '<option value="">カメラが見つかりません</option>';
+        '<option value="">カメラ一覧を取得できません</option>';
       return;
     }
 
@@ -212,79 +281,34 @@ async function loadCameras(){
       select.appendChild(option);
     });
 
-    const preferredIndex =
+    const preferred =
       cameras.findIndex(c =>
         /back|rear|environment|背面/i.test(c.label || '')
       );
 
-    currentCameraIndex =
-      preferredIndex >= 0 ? preferredIndex : 0;
-
-    select.value = String(currentCameraIndex);
+    if(preferred >= 0){
+      currentCameraIndex = preferred;
+      select.value = String(preferred);
+    }
 
   }catch(e){
-    showError(
-      'カメラ一覧を取得できません：' +
-      (e.message || e)
-    );
-  }
-}
-
-async function startCamera(){
-  if(running) return;
-
-  try{
-    if(!cameras.length){
-      await loadCameras();
-    }
-
-    if(!cameras.length){
-      showError('カメラが見つかりません。');
-      return;
-    }
-
-    const select =
-      document.getElementById('cameraSelect');
-
-    if(select.value !== ''){
-      currentCameraIndex = Number(select.value);
-    }
-
-    qr = new Html5Qrcode('reader');
-
-    await qr.start(
-      cameras[currentCameraIndex].id,
-      {
-        fps:10,
-        qrbox:{width:250,height:250}
-      },
-      onScanSuccess,
-      () => {}
-    );
-
-    running = true;
-
-    document.getElementById('cameraStatus').textContent =
-      'カメラ起動中';
-
-  }catch(e){
-    showError(
-      'カメラを起動できません：' +
-      (e.message || e)
-    );
+    // 一覧取得に失敗してもスキャン自体は継続
   }
 }
 
 async function stopCamera(){
-  if(!qr || !running) return;
+  if(!qr || !running){
+    document.getElementById('cameraStatus').textContent =
+      'カメラ停止中';
+    return;
+  }
 
   try{
     await qr.stop();
     await qr.clear();
-  }catch(e){
-    // 停止失敗は無視
-  }
+  }catch(e){}
 
+  qr = null;
   running = false;
 
   document.getElementById('cameraStatus').textContent =
@@ -293,7 +317,7 @@ async function stopCamera(){
 
 async function switchCamera(){
   if(!cameras.length){
-    await loadCameras();
+    await refreshCameraList();
   }
 
   if(cameras.length <= 1){
@@ -311,8 +335,73 @@ async function switchCamera(){
   document.getElementById('cameraSelect').value =
     String(currentCameraIndex);
 
-  await startCamera();
+  try{
+    qr = new Html5Qrcode('reader');
+
+    await qr.start(
+      cameras[currentCameraIndex].id,
+      {
+        fps:10,
+        qrbox:{width:250,height:250}
+      },
+      onScanSuccess,
+      () => {}
+    );
+
+    running = true;
+
+    document.getElementById('cameraStatus').textContent =
+      'カメラ起動中・QRを読み取れます';
+
+  }catch(e){
+    showError(
+      'カメラ切替に失敗しました：' +
+      ((e && e.message) ? e.message : String(e))
+    );
+  }
 }
+
+document
+  .getElementById('cameraSelect')
+  .addEventListener('change', async event => {
+    if(!cameras.length){
+      return;
+    }
+
+    currentCameraIndex =
+      Number(event.target.value || 0);
+
+    if(!running){
+      return;
+    }
+
+    await stopCamera();
+
+    try{
+      qr = new Html5Qrcode('reader');
+
+      await qr.start(
+        cameras[currentCameraIndex].id,
+        {
+          fps:10,
+          qrbox:{width:250,height:250}
+        },
+        onScanSuccess,
+        () => {}
+      );
+
+      running = true;
+
+      document.getElementById('cameraStatus').textContent =
+        'カメラ起動中・QRを読み取れます';
+
+    }catch(e){
+      showError(
+        'カメラの変更に失敗しました：' +
+        ((e && e.message) ? e.message : String(e))
+      );
+    }
+  });
 
 function onScanSuccess(decodedText){
   const code = String(decodedText || '').trim();
@@ -321,7 +410,6 @@ function onScanSuccess(decodedText){
 
   const now = Date.now();
 
-  // 同じQRの連続読み取りを2秒間防止
   if(code === lastCode && now - lastTime < 2000){
     return;
   }
@@ -387,8 +475,6 @@ function showReadResult(code){
     <div class="raw">登録確認中…</div>
   `;
 }
-
-
 
 window.addEventListener('message', function(event){
   const data = event.data || {};
@@ -475,9 +561,7 @@ function beep(){
       ctx.close();
     },120);
 
-  }catch(e){
-    // 音が鳴らなくても読み取りは継続
-  }
+  }catch(e){}
 }
 
 function showError(message){
@@ -487,7 +571,7 @@ function showError(message){
   result.className = 'result error';
 
   result.innerHTML = `
-    <div class="big-id">エラー</div>
+    <div class="big-id">カメラエラー</div>
     <div class="big-subject">${escapeHtml(message)}</div>
   `;
 }
@@ -500,8 +584,6 @@ function escapeHtml(value){
     .replaceAll('"','&quot;')
     .replaceAll("'","&#039;");
 }
-
-window.addEventListener('load', loadCameras);
 </script>
 
 </body>
